@@ -2,6 +2,8 @@ class Request:
 
     def __init__(self, request: bytes):
         # TODO: parse the bytes of the request and populate the following instance variables
+        # 'GET / HTTP/1.1\r\nHost: localhost:8080\r\nConnection: keep-alive\r\n\r\n'
+        # Split off of \r\n to seperate headers and the request line
 
         self.body = b""
         self.method = ""
@@ -10,6 +12,12 @@ class Request:
         self.headers = {}
         self.cookies = {}
 
+        decodedRequest = request.decode()
+        httpRequest = decodedRequest.split("\r\n")
+
+        #http-request[0] should look like this
+        #GET / HTTP/1.1
+        #parse the ' ' in headers and request line for version and body and headers.
 
 def test1():
     request = Request(b'GET / HTTP/1.1\r\nHost: localhost:8080\r\nConnection: keep-alive\r\n\r\n')
