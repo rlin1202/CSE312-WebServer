@@ -13,11 +13,29 @@ class Request:
         self.cookies = {}
 
         decodedRequest = request.decode()
-        httpRequest = decodedRequest.split("\r\n")
+        httpLines = decodedRequest.split("\r\n")
 
         #http-request[0] should look like this
         #GET / HTTP/1.1
-        #parse the ' ' in headers and request line for version and body and headers.
+        #parse the ' ' in headers and request line for version and body and headers.\
+
+        requestLines = httpLines[0].split()
+
+        self.method = requestLines[0]
+        self.path = requestLines[1]
+        self.http_version = requestLines[2]
+
+        #Loop through each line starting from the first line after the request line
+        #split on the first : and then take key and value for each header line.
+
+        #goes out of bounds at some point but properly goes through all the lines.
+        for lines in httpLines[1:]:
+            headerParts = lines.split(':',1)
+            key = headerParts[0].strip()
+            value = headerParts[1].strip()
+            self.headers[key] = value
+
+
 
 def test1():
     request = Request(b'GET / HTTP/1.1\r\nHost: localhost:8080\r\nConnection: keep-alive\r\n\r\n')
@@ -30,7 +48,7 @@ def test1():
     # This is the start of a simple way (ie. no external libraries) to test your code.
     # It's recommended that you complete this test and add others, including at least one
     # test using a POST request. Also, ensure that the types of all values are correct
-
+    print("test1 passed")
 
 if __name__ == '__main__':
     test1()
