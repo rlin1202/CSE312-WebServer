@@ -43,6 +43,7 @@ class Request:
             # [1]theme=dark;
             # [2]visits=67
             if  key == "Cookie":
+                #Bug here: used lines instead of value to parse cookies
                 cookies = value.split(';')
                 for cookie in cookies:
                     cookieParts = cookie.split('=')
