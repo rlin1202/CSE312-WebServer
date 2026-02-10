@@ -3,15 +3,27 @@ import json
 
 class Response:
     def __init__(self):
+        #keep instance variables as strings?
+        #use methods to modify the response object?
+        self.code = 200
+        self.text = "OK"
+        self.cookies = {}
+        self.headers = {}
+        self.body = None
+
         pass
 
     def set_status(self, code, text):
+        self.code = code
+        self.text = text
         pass
 
     def headers(self, headers):
+        self.headers.update(headers)
         pass
 
     def cookies(self, cookies):
+        self.cookies.update(cookies)
         pass
 
     def bytes(self, data):
