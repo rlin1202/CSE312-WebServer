@@ -8,17 +8,27 @@ class Router:
         pass
 
     def add_route(self, method, path, action, exact_path=False):
-        self.routes.append([method,path,action,exact_path])
+        self.routes.append((method,path,action,exact_path))
         pass
 
     def route_request(self, request, handler):
-        for route in self.routes:
-            # idea check if method and path match, if they do call the function associated with route
-            # check exact path before checking method and path match????
-            # if exact path is default false then match with start with
-
-            if request.method == self.routes[route][0] and request.path == self.routes[route][1]:
-                route_function = self.routes[route][2]
-                route_function(request,handler)
-
-        pass
+        # route request steps
+        # first check method
+        # if they match move on to check path and the exact path
+        # if everything matches up save the function and call the function assocaited with route
+        # if nothing found then return a 404 not found response.
+        for method, routePath, action, exact_path in self.routes:
+            if method == request.method:
+                # if route found call method, after method call exit and return
+                if exact_path == True:
+                    if request.path == routePath:
+                        action(request, handler)
+                        return
+                else:
+                    if request.path.startswith(routePath):
+                        action(request, handler)
+                        return
+        response = util.response.Response()
+        response.set_status(404,"Not Found")
+        response.text("Route Not Found")
+        handler.request.sendall(response.to_data())
