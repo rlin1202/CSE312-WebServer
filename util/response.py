@@ -11,33 +11,33 @@ class Response:
         self.responseHeaders = {}
         self.responseBody = b''
 
-        pass
+        self.responseHeaders["X-Content-Type-Options"] = "nosniff"
 
     def set_status(self, code, text):
         self.statusCode = code
         self.statusText = text
-        pass
+        return self
 
     def headers(self, headers):
         self.responseHeaders.update(headers)
-        pass
+        return self
 
     def cookies(self, cookies):
         self.responseCookies.update(cookies)
-        pass
+        return self
 
     def bytes(self, data):
         self.responseBody +=data
-        pass
+        return self
 
     def text(self, data):
         self.responseBody += data.encode()
-        pass
+        return self
 
     def json(self, data):
         self.responseHeaders["Content-Type"] = "application/json"
         self.responseBody = json.dumps(data)
-        pass
+        return self
 
     def to_data(self):
         #HTTP/1.1 200 OK

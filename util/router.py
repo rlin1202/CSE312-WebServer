@@ -9,7 +9,6 @@ class Router:
 
     def add_route(self, method, path, action, exact_path=False):
         self.routes.append((method,path,action,exact_path))
-        pass
 
     def route_request(self, request, handler):
         # route request steps
