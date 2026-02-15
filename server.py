@@ -98,7 +98,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 response.text(body)
                 headers = {"Content-Type": "text/html"}
                 response.headers(headers)
-                handler.send_all(response.to_data())
+                handler.sendall(response.to_data())
         except FileNotFoundError:
             response.set_status(404, "File Not Found")
             response.text("File Not Found")

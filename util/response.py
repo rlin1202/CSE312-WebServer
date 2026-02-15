@@ -36,7 +36,7 @@ class Response:
 
     def json(self, data):
         self.responseHeaders["Content-Type"] = "application/json"
-        self.responseBody = json.dumps(data)
+        self.responseBody = json.dumps(data).encode()
         return self
 
     def to_data(self):

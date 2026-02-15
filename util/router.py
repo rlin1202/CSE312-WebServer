@@ -5,7 +5,6 @@ class Router:
 
     def __init__(self):
         self.routes = []
-        pass
 
     def add_route(self, method, path, action, exact_path=False):
         self.routes.append((method,path,action,exact_path))
