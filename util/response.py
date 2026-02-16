@@ -10,7 +10,6 @@ class Response:
         self.responseCookies = {}
         self.responseHeaders = {}
         self.responseBody = b''
-
         self.responseHeaders["X-Content-Type-Options"] = "nosniff"
 
     def set_status(self, code, text):
@@ -47,6 +46,9 @@ class Response:
         for key in self.responseHeaders:
             # HTTP/1.1 200 OK\r\nHeaderKey: HeaderValue\r\n
             responseToData += (key.encode() + b': ' + self.responseHeaders[key].encode() + b'\r\n')
+        if "Cookie" not in self.responseHeaders:
+            for cookie in self.responseCookies:
+                responseToData += b'Set-Cookie: ' + cookie.encode() + b'=' + self.responseCookies[cookie].encode() + b'\r\n'
         # check to see if content type is updated if not default to text/plain
         # need content length
         if "Content-Type" not in self.responseHeaders:

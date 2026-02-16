@@ -36,9 +36,9 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         # image/x-icon
 
         types = {
-            "html": "text/html; charset=UTF-8",
-            "htm": "text/html; charset=UTF-8",
-            "js": "text/javascript; charset=UTF-8",
+            "html": "text/html; charset=utf-8",
+            "htm": "text/html; charset=utf-8",
+            "js": "text/javascript; charset=utf-8",
             "jpg": "image/jpeg",
             "gif": "image/gif",
             "webp": "image/webp",
@@ -78,7 +78,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 body = file.read()
                 body = body.replace("{{content}}",content)
                 response.text(body)
-                headers = {"Content-Type": "text/html"}
+                headers = {"Content-Type": "text/html; charset=utf-8"}
                 response.headers(headers)
                 handler.send_all(response.to_data())
         except FileNotFoundError:
@@ -96,7 +96,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 body = file.read()
                 body = body.replace("{{content}}",content)
                 response.text(body)
-                headers = {"Content-Type": "text/html"}
+                headers = {"Content-Type": "text/html; charset=utf-8"}
                 response.headers(headers)
                 handler.sendall(response.to_data())
         except FileNotFoundError:
