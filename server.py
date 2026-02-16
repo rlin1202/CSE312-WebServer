@@ -62,11 +62,11 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                     "Content-Type": self.mime_type(file_path),
                 }
                 response.headers(headers)
-                handler.send_all(response.to_data())
+                handler.request.sendall(response.to_data())
         except FileNotFoundError:
             response.set_status(404,"File Not Found")
             response.text("File Not Found")
-            handler.sendall(response.to_data())
+            handler.request.sendall(response.to_data())
 
     def render_index(self, request,handler):
         response = Response()
@@ -80,11 +80,11 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 response.text(body)
                 headers = {"Content-Type": "text/html; charset=utf-8"}
                 response.headers(headers)
-                handler.send_all(response.to_data())
+                handler.request.sendall(response.to_data())
         except FileNotFoundError:
             response.set_status(404, "File Not Found")
             response.text("File Not Found")
-            handler.sendall(response.to_data())
+            handler.request.sendall(response.to_data())
 
     def render_chat(self, request,handler):
         response = Response()
@@ -98,11 +98,11 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 response.text(body)
                 headers = {"Content-Type": "text/html; charset=utf-8"}
                 response.headers(headers)
-                handler.sendall(response.to_data())
+                handler.request.sendall(response.to_data())
         except FileNotFoundError:
             response.set_status(404, "File Not Found")
             response.text("File Not Found")
-            handler.sendall(response.to_data())
+            handler.request.sendall(response.to_data())
 
 def main():
     host = "0.0.0.0"
