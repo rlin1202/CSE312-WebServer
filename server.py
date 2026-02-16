@@ -1,19 +1,32 @@
 import socketserver
+import json
+import html
+from pymongo import MongoClient
 from util.request import Request
 from util.response import Response
 from util.router import Router
 from util.hello_path import hello_path
 
 
+
 class MyTCPHandler(socketserver.BaseRequestHandler):
 
     def __init__(self, request, client_address, server):
         self.router = Router()
+
+        mongo_client = MongoClient("mongodb://localhost:27017/")
+        self.db = mongo_client["cse312-webserver"]
+        self.messages = self.db["messages"]
+
+        self.messageIDs = 0
+
         self.router.add_route("GET", "/hello", hello_path, True)
         # TODO: Add your routes here
         self.router.add_route("GET","/public", self.serve_static_files, False)
         self.router.add_route("GET","/",self.render_index,True)
         self.router.add_route("GET", "/chat", self.render_chat, True)
+        self.router.add_route("POST","/api/chats",self.create_chat_message, True)
+
         super().__init__(request, client_address, server)
 
     def handle(self):
@@ -55,7 +68,6 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         file_path = '.' + request.path
         try:
             with open(file_path, 'rb') as file:
-                response.set_status(200,"OK")
                 response.bytes(file.read())
 
                 headers = {
@@ -74,7 +86,6 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             with open("public/index.html","r",encoding="utf-8") as file:
                 content = file.read()
             with open("public/layout/layout.html","r",encoding="utf-8") as file:
-                response.set_status(200, "OK")
                 body = file.read()
                 body = body.replace("{{content}}",content)
                 response.text(body)
@@ -92,7 +103,6 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             with open("public/chat.html","r",encoding="utf-8") as file:
                 content = file.read()
             with open("public/layout/layout.html","r",encoding="utf-8") as file:
-                response.set_status(200, "OK")
                 body = file.read()
                 body = body.replace("{{content}}",content)
                 response.text(body)
@@ -103,6 +113,32 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             response.set_status(404, "File Not Found")
             response.text("File Not Found")
             handler.request.sendall(response.to_data())
+
+    def create_chat_message(self, request, handler):
+        data = json.loads(request.body.decode())
+        message = html.escape(data["content"])
+        self.messageIDs += 1
+
+        message_info = {
+            "content": message,
+            "author": "guest",
+            "MessageID": str(self.messageIDs)
+        }
+
+        self.messages.insert_one(message_info)
+
+        response = Response()
+        response.text("message sent")
+        handler.request.sendall(response.to_data())
+
+    def get_chat_message(self,request,handler):
+        all_messages = self.messages.find({})
+
+        for message in all_messages:
+
+
+
+
 
 def main():
     host = "0.0.0.0"
