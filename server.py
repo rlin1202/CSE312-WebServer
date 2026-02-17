@@ -1,6 +1,7 @@
 import socketserver
 import json
 import html
+import uuid
 from pymongo import MongoClient
 from util.request import Request
 from util.response import Response
@@ -16,9 +17,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
         mongo_client = MongoClient("mongodb://localhost:27017/")
         self.db = mongo_client["cse312-webserver"]
+        self.users = self.db["users"]
         self.messages = self.db["messages"]
-
-        self.messageIDs = 0
 
         self.router.add_route("GET", "/hello", hello_path, True)
         # TODO: Add your routes here
@@ -26,6 +26,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET","/",self.render_index,True)
         self.router.add_route("GET", "/chat", self.render_chat, True)
         self.router.add_route("POST","/api/chats",self.create_chat_message, True)
+        self.router.add_route("GET","/api/chats",self.get_chat_message, True)
 
         super().__init__(request, client_address, server)
 
@@ -117,12 +118,12 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
     def create_chat_message(self, request, handler):
         data = json.loads(request.body.decode())
         message = html.escape(data["content"])
-        self.messageIDs += 1
 
         message_info = {
+            "author": "guest" + uuid.uuid4().hex[:4],
             "content": message,
-            "author": "guest",
-            "MessageID": str(self.messageIDs)
+            "id": str(uuid.uuid4()),
+            "updated": False,
         }
 
         self.messages.insert_one(message_info)
@@ -133,11 +134,23 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
     def get_chat_message(self,request,handler):
         all_messages = self.messages.find({})
+        all_chat = []
+        for messages in all_messages:
+            chat = {}
+            chat["author"] = messages["author"]
+            chat["id"] = messages["id"]
+            chat["content"] = messages["content"]
+            chat["updated"] = messages["updated"]
+            all_chat.append(chat)
+        response = Response()
+        response.json({"messages": all_chat})
+        handler.request.sendall(response.to_data())
 
-        for message in all_messages:
-
-
-
+    def update_chat_message(self,request,handler):
+        #file path = PATCH /api/chats/{id} assuming it looks more like /api/chats/123456
+        filepath = request.path.split('/')
+        id = str(filepath[-1])
+        self.messages.update_one({"id":id},{"content":request.body, "updated": True})
 
 
 def main():
