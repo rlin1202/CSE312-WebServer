@@ -28,6 +28,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("POST","/api/chats",self.create_chat_message, True)
         self.router.add_route("GET","/api/chats",self.get_chat_message, True)
         self.router.add_route("PATCH","/api/chats/",self.update_chat_message,False)
+        self.router.add_route("DELETE","/api/chats/",self.delete_chat_message,False)
 
 
         super().__init__(request, client_address, server)
@@ -181,7 +182,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         if message:
             if request.cookies.get("session") != message.get("session"):
                 response.set_status(403,"Forbidden")
-                response.text("Hey! That's Not Nice")
+                response.text("You just had to try it")
             else:
                 self.messages.update_one({"id":id}, {"$set":{"content":updated_message,"updated":True}})
                 response.text("message updated")
@@ -190,6 +191,28 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             response.text("Message Not Found")
 
         handler.request.sendall(response.to_data())
+
+    def delete_chat_message(self,request,handler):
+        filepath = request.path.split('/')
+        id = str(filepath[-1])
+        message = self.messages.find_one({"id": id})
+
+        response = Response()
+
+        if message:
+            if request.cookies.get("session") != message.get("session"):
+                response.set_status(403,"Forbidden")
+                response.text("HEY,THAT'S NOT NICE")
+            else:
+                self.messages.delete_one({"id":id})
+                response.text("Message Deleted")
+        else:
+            response.set_status(404,"Not Found")
+            response.text("Message Not Found")
+
+        handler.request.sendall(response.to_data())
+
+
 
 def main():
     host = "0.0.0.0"
