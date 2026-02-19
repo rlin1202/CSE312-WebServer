@@ -27,6 +27,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET", "/chat", self.render_chat, True)
         self.router.add_route("POST","/api/chats",self.create_chat_message, True)
         self.router.add_route("GET","/api/chats",self.get_chat_message, True)
+        self.router.add_route("PATCH","/api/chats/",self.update_chat_message,False)
+
 
         super().__init__(request, client_address, server)
 
@@ -116,11 +118,31 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             handler.request.sendall(response.to_data())
 
     def create_chat_message(self, request, handler):
+        response = Response()
         data = json.loads(request.body.decode())
         message = html.escape(data["content"])
 
+        if "session" not in request.cookies:
+            session = str(uuid.uuid4())
+            author = "guest" + str(uuid.uuid4().hex[:4])
+
+            user = {
+                "author": author,
+                "session": session
+            }
+            self.users.insert_one(user)
+
+            session_cookie = {"session":session + "; HttpOnly; Path=/"}
+            response.cookies(session_cookie)
+        else:
+            user = self.users.find_one({"session":request.cookies["session"]})
+
+            author = user["author"]
+            session = user["session"]
+
         message_info = {
-            "author": "guest" + uuid.uuid4().hex[:4],
+            "author":author,
+            "session":session,
             "content": message,
             "id": str(uuid.uuid4()),
             "updated": False,
@@ -128,7 +150,6 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
         self.messages.insert_one(message_info)
 
-        response = Response()
         response.text("message sent")
         handler.request.sendall(response.to_data())
 
@@ -138,6 +159,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         for messages in all_messages:
             chat = {}
             chat["author"] = messages["author"]
+            chat["session"] = messages["session"]
             chat["id"] = messages["id"]
             chat["content"] = messages["content"]
             chat["updated"] = messages["updated"]
@@ -150,8 +172,24 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         #file path = PATCH /api/chats/{id} assuming it looks more like /api/chats/123456
         filepath = request.path.split('/')
         id = str(filepath[-1])
-        self.messages.update_one({"id":id},{"content":request.body, "updated": True})
+        message = self.messages.find_one({"id":id})
 
+        response = Response()
+
+        data = json.loads(request.body.decode())
+        updated_message = html.escape(data["content"])
+        if message:
+            if request.cookies.get("session") != message.get("session"):
+                response.set_status(403,"Forbidden")
+                response.text("Hey! That's Not Nice")
+            else:
+                self.messages.update_one({"id":id}, {"$set":{"content":updated_message,"updated":True}})
+                response.text("message updated")
+        else:
+            response.set_status(404,"Not Found")
+            response.text("Message Not Found")
+
+        handler.request.sendall(response.to_data())
 
 def main():
     host = "0.0.0.0"
