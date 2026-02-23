@@ -29,6 +29,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET","/api/chats",self.get_chat_message, True)
         self.router.add_route("PATCH","/api/chats/",self.update_chat_message,False)
         self.router.add_route("DELETE","/api/chats/",self.delete_chat_message,False)
+        self.router.add_route("PATCH","/api/nickname",self.update_nickname, True)
 
 
         super().__init__(request, client_address, server)
@@ -137,17 +138,19 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             response.cookies(session_cookie)
         else:
             user = self.users.find_one({"session":request.cookies["session"]})
-
-            author = user["author"]
             session = user["session"]
-
+            author = user["author"]
         message_info = {
-            "author":author,
+            "author": author,
             "session":session,
             "content": message,
             "id": str(uuid.uuid4()),
             "updated": False,
         }
+
+        nickname = user.get("nickname")
+        if nickname:
+            message_info["nickname"] = nickname
 
         self.messages.insert_one(message_info)
 
@@ -159,9 +162,10 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         all_chat = []
         for messages in all_messages:
             chat = {}
-            chat["author"] = messages["author"]
-            chat["session"] = messages["session"]
             chat["id"] = messages["id"]
+            chat["session"] = messages["session"]
+            chat["author"] = messages["author"]
+            chat["nickname"] = messages.get("nickname")
             chat["content"] = messages["content"]
             chat["updated"] = messages["updated"]
             all_chat.append(chat)
@@ -209,6 +213,23 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         else:
             response.set_status(404,"Not Found")
             response.text("Message Not Found")
+
+        handler.request.sendall(response.to_data())
+
+    def update_nickname (self,request,handler):
+        session_id = request.cookies.get("session")
+        user = self.users.find_one({"session":session_id})
+        data = json.loads(request.body.decode())
+        nickname = data.get("nickname")
+        response = Response()
+
+        if user:
+            self.users.update_one({"session":session_id},{"$set":{"nickname":nickname}})
+            self.messages.update_many({"session":session_id},{"$set":{"nickname":nickname}})
+            response.text("nickname updated")
+        else:
+            response.set_status(404,"Not Found")
+            response.text("User Not Found")
 
         handler.request.sendall(response.to_data())
 
