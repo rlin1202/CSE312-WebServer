@@ -22,9 +22,15 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
         self.router.add_route("GET", "/hello", hello_path, True)
         # TODO: Add your routes here
+        #rendering pages
         self.router.add_route("GET","/public", self.serve_static_files, False)
         self.router.add_route("GET","/",self.render_index,True)
         self.router.add_route("GET", "/chat", self.render_chat, True)
+        self.router.add_route("GET", "/register", self.render_register, True)
+        self.router.add_route("GET", "/login", self.render_login, True)
+        self.router.add_route("GET", "/settings", self.render_settings, True)
+        self.router.add_route("GET", "/search-users", self.render_search, True)
+        #functionality
         self.router.add_route("POST","/api/chats",self.create_chat_message, True)
         self.router.add_route("GET","/api/chats",self.get_chat_message, True)
         self.router.add_route("PATCH","/api/chats/",self.update_chat_message,False)
@@ -85,10 +91,10 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             response.text("File Not Found")
             handler.request.sendall(response.to_data())
 
-    def render_index(self, request,handler):
+    def render_file(self, request,handler,f):
         response = Response()
         try:
-            with open("public/index.html","r",encoding="utf-8") as file:
+            with open(f,"r",encoding="utf-8") as file:
                 content = file.read()
             with open("public/layout/layout.html","r",encoding="utf-8") as file:
                 body = file.read()
@@ -102,22 +108,23 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             response.text("File Not Found")
             handler.request.sendall(response.to_data())
 
+    def render_index(self, request,handler):
+        self.render_file(request,handler,"public/index.html")
+
     def render_chat(self, request,handler):
-        response = Response()
-        try:
-            with open("public/chat.html","r",encoding="utf-8") as file:
-                content = file.read()
-            with open("public/layout/layout.html","r",encoding="utf-8") as file:
-                body = file.read()
-                body = body.replace("{{content}}",content)
-                response.text(body)
-                headers = {"Content-Type": "text/html; charset=utf-8"}
-                response.headers(headers)
-                handler.request.sendall(response.to_data())
-        except FileNotFoundError:
-            response.set_status(404, "File Not Found")
-            response.text("File Not Found")
-            handler.request.sendall(response.to_data())
+        self.render_file(request,handler,"public/chat.html")
+
+    def render_register(self, request, handler):
+        self.render_file(request,handler,"public/register.html")
+
+    def render_login(self, request, handler):
+        self.render_file(request,handler,"public/login.html")
+
+    def render_settings(self, request, handler):
+        self.render_file(request,handler,"public/settings.html")
+
+    def render_search(self, request, handler):
+        self.render_file(request,handler,"public/search-users.html")
 
     def create_chat_message(self, request, handler):
         response = Response()
@@ -233,7 +240,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
         handler.request.sendall(response.to_data())
 
-
+    def user_register(self,request,handler):
+        pass
 
 def main():
     host = "0.0.0.0"
