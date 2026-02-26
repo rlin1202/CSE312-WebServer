@@ -2,7 +2,10 @@ import socketserver
 import json
 import html
 import uuid
+import bcrypt
+
 from pymongo import MongoClient
+from util.auth import extract_credentials, validate_password
 from util.request import Request
 from util.response import Response
 from util.router import Router
@@ -36,6 +39,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("PATCH","/api/chats/",self.update_chat_message,False)
         self.router.add_route("DELETE","/api/chats/",self.delete_chat_message,False)
         self.router.add_route("PATCH","/api/nickname",self.update_nickname, True)
+        self.router.add_route("POST","/register",self.user_register,True)
 
 
         super().__init__(request, client_address, server)
@@ -241,7 +245,37 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         handler.request.sendall(response.to_data())
 
     def user_register(self,request,handler):
-        pass
+        user_credentials = extract_credentials(request)
+        username = user_credentials[0]
+        pw = user_credentials[1]
+
+        response = Response()
+
+        user = self.users.find_one({"username":username})
+        if user:
+            response.set_status(400,"Username already exists")
+            response.text("Username already exists")
+        else:
+            if validate_password(pw):
+                user_id = str(uuid.uuid4())
+                salt = bcrypt.gensalt()
+                hashed_userPW = bcrypt.hashpw(pw,salt)
+
+                user = {
+                    "id":user_id,
+                    "username": username,
+                    "password": hashed_userPW
+                }
+
+                self.users.insert_one(user)
+                response.set_status(200,"OK")
+                response.text("Registration Successful")
+            else:
+                response.set_status(400,"Password Invalid")
+                response.text("Password is Invalid")
+
+        handler.request.sendall(response.to_data())
+
 
 def main():
     host = "0.0.0.0"

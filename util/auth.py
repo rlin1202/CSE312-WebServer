@@ -1,6 +1,5 @@
-from dataclasses import replace
+from util.request import Request
 
-import request
 def extract_credentials(request):
     #dictionary for encoding strings in password
     encode_strings = {
