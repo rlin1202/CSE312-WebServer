@@ -14,8 +14,6 @@ from util.response import Response
 from util.router import Router
 from util.hello_path import hello_path
 
-
-
 class MyTCPHandler(socketserver.BaseRequestHandler):
 
     def __init__(self, request, client_address, server):
@@ -44,6 +42,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("PATCH","/api/nickname",self.update_nickname, True)
         self.router.add_route("POST","/register",self.user_register,True)
         self.router.add_route("POST","/login",self.user_login,True)
+        self.router.add_route("GET","/logout",self.user_logout,True)
+        self.router.add_route("GET","/api/users/@me",self.get_user_info,True)
 
 
         super().__init__(request, client_address, server)
@@ -141,14 +141,26 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         new_user = False
         session = ""
         author=""
+        auth_token = request.cookies.get("auth_token")
+        current_user = None
 
-        if "session" not in request.cookies:
+        registered_user = self.users.find_one({"auth_token":auth_token})
+        if registered_user:
+            author = registered_user.get("username")
+            if registered_user.get("session"):
+                session = registered_user["session"]
+            else:
+                session = str(uuid.uuid4())
+                self.users.update_one({"auth_token":auth_token},{"$set":{"session":session}})
+            current_user = registered_user
+        elif "session" not in request.cookies:
             new_user = True
         else:
             isUser = self.users.find_one({"session": request.cookies["session"]})
             if isUser:
                 session = isUser.get("session")
                 author = isUser.get("username")
+                current_user = isUser
             else:
                 new_user = True
 
@@ -173,10 +185,10 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             "updated": False,
         }
 
-        user = self.users.find_one({"session":session})
-        nickname = user.get("nickname")
-        if nickname:
-            message_info["nickname"] = nickname
+        if current_user:
+            nickname = current_user.get("nickname")
+            if nickname:
+                message_info["nickname"] = nickname
 
         self.messages.insert_one(message_info)
 
@@ -262,7 +274,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
     def user_register(self,request,handler):
         user_credentials = extract_credentials(request)
         username = user_credentials[0]
-        pw = user_credentials[1].encode()
+        pw = user_credentials[1]
 
         response = Response()
 
@@ -274,7 +286,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             if validate_password(pw):
                 user_id = str(uuid.uuid4())
                 salt = bcrypt.gensalt()
-                hashed_userPW = bcrypt.hashpw(pw,salt).decode()
+                hashed_userPW = bcrypt.hashpw(pw.encode(),salt).decode()
 
                 new_user = {
                     "id":user_id,
@@ -316,11 +328,42 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
         handler.request.sendall(response.to_data())
 
-    def user_info(self,request,handler):
+    def user_logout(self,request,handler):
         auth_token = request.cookies.get("auth_token")
+        user = self.users.find_one({"auth_token":auth_token})
+
+        if user:
+            self.users.update_one({"auth_token":auth_token},{"$unset":{"auth_token":""}})
+        headers = {"Location": "/"}
+        cookies = {"auth_token": ";Max-Age=0; Path=/"}
+        response = Response()
+        response.set_status(302,"Found")
+        response.headers(headers)
+        response.cookies(cookies)
+
+        handler.request.sendall(response.to_data())
+
+    def get_user_info(self,request,handler):
+        auth_token = request.cookies.get("auth_token")
+        response = Response()
+        is_unauthorized = False
         if auth_token:
             user = self.users.find_one({"auth_token":auth_token})
+            if user:
+                user_info = {
+                    "username": user["username"],
+                    "id": user["id"]
+                }
+                response.json(user_info)
+            else:
+                is_unauthorized = True
+        else:
+            is_unauthorized = True
+        if is_unauthorized:
+            response.set_status(401, "Unauthorized")
+            response.json({})
 
+        handler.request.sendall(response.to_data())
 
 def main():
     host = "0.0.0.0"
