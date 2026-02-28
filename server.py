@@ -140,27 +140,15 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         message = html.escape(data["content"])
         new_user = False
         session = ""
-        author=""
-        auth_token = request.cookies.get("auth_token")
-        current_user = None
+        author = ""
 
-        registered_user = self.users.find_one({"auth_token":auth_token})
-        if registered_user:
-            author = registered_user.get("username")
-            if registered_user.get("session"):
-                session = registered_user["session"]
-            else:
-                session = str(uuid.uuid4())
-                self.users.update_one({"auth_token":auth_token},{"$set":{"session":session}})
-            current_user = registered_user
-        elif "session" not in request.cookies:
+        if "session" not in request.cookies:
             new_user = True
         else:
             isUser = self.users.find_one({"session": request.cookies["session"]})
             if isUser:
                 session = isUser.get("session")
                 author = isUser.get("username")
-                current_user = isUser
             else:
                 new_user = True
 
@@ -179,16 +167,16 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
         message_info = {
             "author": author,
-            "session":session,
+            "session": session,
             "content": message,
             "id": str(uuid.uuid4()),
             "updated": False,
         }
 
-        if current_user:
-            nickname = current_user.get("nickname")
-            if nickname:
-                message_info["nickname"] = nickname
+        user = self.users.find_one({"session": session})
+        nickname = user.get("nickname")
+        if nickname:
+            message_info["nickname"] = nickname
 
         self.messages.insert_one(message_info)
 
