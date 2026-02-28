@@ -61,4 +61,4 @@ def validate_password(password):
         else:
             return False
 
-        return isLower and isUpper and containsSpecial and containsNum
+    return isLower and isUpper and containsSpecial and containsNum

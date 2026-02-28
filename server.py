@@ -2,7 +2,10 @@ import socketserver
 import json
 import html
 import uuid
+from dataclasses import asdict
+
 import bcrypt
+import hashlib
 
 from pymongo import MongoClient
 from util.auth import extract_credentials, validate_password
@@ -40,6 +43,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("DELETE","/api/chats/",self.delete_chat_message,False)
         self.router.add_route("PATCH","/api/nickname",self.update_nickname, True)
         self.router.add_route("POST","/register",self.user_register,True)
+        self.router.add_route("POST","/login",self.user_login,True)
 
 
         super().__init__(request, client_address, server)
@@ -134,23 +138,33 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         response = Response()
         data = json.loads(request.body.decode())
         message = html.escape(data["content"])
+        new_user = False
+        session = ""
+        author=""
 
         if "session" not in request.cookies:
+            new_user = True
+        else:
+            isUser = self.users.find_one({"session": request.cookies["session"]})
+            if isUser:
+                session = isUser.get("session")
+                author = isUser.get("username")
+            else:
+                new_user = True
+
+        if new_user:
             session = str(uuid.uuid4())
             author = "guest" + str(uuid.uuid4().hex[:4])
 
             user = {
-                "author": author,
+                "username": author,
                 "session": session
             }
             self.users.insert_one(user)
 
-            session_cookie = {"session":session + "; HttpOnly; Path=/"}
+            session_cookie = {"session": session + "; HttpOnly; Path=/"}
             response.cookies(session_cookie)
-        else:
-            user = self.users.find_one({"session":request.cookies["session"]})
-            session = user["session"]
-            author = user["author"]
+
         message_info = {
             "author": author,
             "session":session,
@@ -159,6 +173,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             "updated": False,
         }
 
+        user = self.users.find_one({"session":session})
         nickname = user.get("nickname")
         if nickname:
             message_info["nickname"] = nickname
@@ -247,7 +262,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
     def user_register(self,request,handler):
         user_credentials = extract_credentials(request)
         username = user_credentials[0]
-        pw = user_credentials[1]
+        pw = user_credentials[1].encode()
 
         response = Response()
 
@@ -259,22 +274,52 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             if validate_password(pw):
                 user_id = str(uuid.uuid4())
                 salt = bcrypt.gensalt()
-                hashed_userPW = bcrypt.hashpw(pw,salt)
+                hashed_userPW = bcrypt.hashpw(pw,salt).decode()
 
-                user = {
+                new_user = {
                     "id":user_id,
                     "username": username,
                     "password": hashed_userPW
                 }
 
-                self.users.insert_one(user)
-                response.set_status(200,"OK")
+                self.users.insert_one(new_user)
                 response.text("Registration Successful")
             else:
                 response.set_status(400,"Password Invalid")
                 response.text("Password is Invalid")
 
         handler.request.sendall(response.to_data())
+
+    def user_login(self,request,handler):
+        user_login = extract_credentials(request)
+        username = user_login[0]
+        password = user_login[1]
+
+        user = self.users.find_one({"username":username})
+
+        response = Response()
+        if user:
+            if bcrypt.checkpw(password.encode(),user["password"].encode()):
+                response.text("Login Successful")
+                token = str(uuid.uuid4())
+                auth_token = hashlib.sha256(token.encode()).hexdigest()
+
+                self.users.update_one({"username":username},{"$set":{"auth_token":auth_token}})
+                cookies = {"auth_token": auth_token + "; HttpOnly; Path=/"}
+                response.cookies(cookies)
+            else:
+                response.set_status(400,"Incorrect Password")
+                response.text("Password is Incorrect")
+        else:
+            response.set_status(400,"User Not Found")
+            response.text("User Not Found")
+
+        handler.request.sendall(response.to_data())
+
+    def user_info(self,request,handler):
+        auth_token = request.cookies.get("auth_token")
+        if auth_token:
+            user = self.users.find_one({"auth_token":auth_token})
 
 
 def main():
