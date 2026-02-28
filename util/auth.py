@@ -19,10 +19,14 @@ def extract_credentials(request):
 
     data = request.body.decode()
     body = data.split("&",1)
-    username_part = body[0].split("=",1)
-    username = username_part[1]
-    password_part  = body[1].split("=",1)
-    password = password_part[1]
+    user_credentials = {}
+    for lines in body:
+        parts = lines.split("=",1)
+        key = parts[0]
+        value = parts[1]
+        user_credentials[key] = value
+    username = user_credentials["username"]
+    password = user_credentials["password"]
     for key in encode_strings:
         password = password.replace(key,encode_strings[key])
 
