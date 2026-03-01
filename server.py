@@ -138,17 +138,31 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         response = Response()
         data = json.loads(request.body.decode())
         message = html.escape(data["content"])
-        new_user = False
         session = ""
         author = ""
+        new_user = False
+        current_user = None
+        auth_token = request.cookies.get("auth_token")
 
-        if "session" not in request.cookies:
+        if auth_token:
+            auth_user = self.users.find_one({"auth_token":auth_token})
+            if auth_user:
+                author = auth_user.get("username")
+                session = auth_user.get("session")
+                if not session:
+                    session = str(uuid.uuid4())
+                    self.users.update_one({"auth_token":auth_token},{"$set":{"session":session}})
+                    session_cookie = {"session": session + "; HttpOnly; Path=/"}
+                    response.cookies(session_cookie)
+                current_user = auth_user
+        elif "session" not in request.cookies:
             new_user = True
         else:
             isUser = self.users.find_one({"session": request.cookies["session"]})
             if isUser:
                 session = isUser.get("session")
                 author = isUser.get("username")
+                current_user = isUser
             else:
                 new_user = True
 
@@ -172,11 +186,10 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             "id": str(uuid.uuid4()),
             "updated": False,
         }
-
-        user = self.users.find_one({"session": session})
-        nickname = user.get("nickname")
-        if nickname:
-            message_info["nickname"] = nickname
+        if current_user:
+            nickname = current_user.get("nickname")
+            if nickname:
+                message_info["nickname"] = nickname
 
         self.messages.insert_one(message_info)
 
@@ -323,7 +336,10 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         if user:
             self.users.update_one({"auth_token":auth_token},{"$unset":{"auth_token":""}})
         headers = {"Location": "/"}
-        cookies = {"auth_token": ";Max-Age=0; Path=/"}
+        cookies = {
+            "auth_token": ";Max-Age=0; Path=/",
+            "session": ";Max-Age=0; Path-/"
+        }
         response = Response()
         response.set_status(302,"Found")
         response.headers(headers)
