@@ -31,8 +31,18 @@ def extract_credentials(request):
         user_credentials[key] = value
     username = user_credentials["username"]
     password = user_credentials["password"]
-    for key in encode_strings:
-        password = password.replace(key,encode_strings[key])
+    password = (password.replace("%21","!")
+                .replace("%40","@")
+                .replace("%23","#")
+                .replace("%24","$")
+                .replace("%5E","^")
+                .replace("%26","&")
+                .replace("%28","(")
+                .replace("%29",")")
+                .replace("%2D","-")
+                .replace("%5F","_")
+                .replace("%3D","=")
+                .replace("%25","%"))
 
     return [username,password]
 
