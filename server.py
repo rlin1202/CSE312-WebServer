@@ -3,6 +3,7 @@ import json
 import html
 import uuid
 from dataclasses import asdict
+from tokenize import untokenize
 
 import bcrypt
 import hashlib
@@ -45,6 +46,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET","/logout",self.user_logout,True)
         self.router.add_route("GET","/api/users/@me",self.get_user_info,True)
         self.router.add_route("GET","/api/users/search",self.search_user,False)
+        self.router.add_route("POST","/api/users/settings",self.update_profile,True)
 
 
         super().__init__(request, client_address, server)
@@ -413,6 +415,43 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 all_users.append(user)
         response = Response()
         response.json({"users": all_users})
+        handler.request.sendall(response.to_data())
+
+    def update_profile(self,request,handler):
+        user_info = extract_credentials(request)
+        username = user_info[0]
+        password = user_info[1]
+
+        response = Response()
+        update_successful = False
+        auth_token = request.cookies.get("auth_token")
+        if auth_token:
+            user = self.users.find_one({"auth_token":auth_token})
+            if user:
+                if password:
+                    if validate_password(password):
+                        salt = bcrypt.gensalt()
+                        hashed_newPW = bcrypt.hashpw(password.encode(),salt).decode()
+                        self.users.update_one({"auth_token":auth_token},{"$set":{"password":hashed_newPW}})
+                    else:
+                        response.set_status(400,"invalid password")
+                        response.text("New Password is Not valid makes sure it meets all requirements")
+
+                existing = self.users.find_one({"username": username})
+                if existing:
+                    if user["username"] != existing["username"]:
+                        response.set_status(400,"Username already exist")
+                        response.text("Username already taken")
+                    else:
+                        self.users.update_one({"auth_token": auth_token}, {"$set": {"username": username}})
+                else:
+                    self.users.update_one({"auth_token": auth_token}, {"$set": {"username": username}})
+            else:
+                response.set_status(401, "Unauthorized")
+                response.text("Unauthorized")
+        else:
+            response.set_status(401, "Unauthorized")
+            response.text("Unauthorized")
         handler.request.sendall(response.to_data())
 
 def main():
