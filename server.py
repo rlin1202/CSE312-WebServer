@@ -44,7 +44,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("POST","/login",self.user_login,True)
         self.router.add_route("GET","/logout",self.user_logout,True)
         self.router.add_route("GET","/api/users/@me",self.get_user_info,True)
-        self.router.add_route("GET","/api/users/search",self.search_user,True)
+        self.router.add_route("GET","/api/users/search",self.search_user,False)
 
 
         super().__init__(request, client_address, server)
