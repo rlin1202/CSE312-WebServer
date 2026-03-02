@@ -44,6 +44,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("POST","/login",self.user_login,True)
         self.router.add_route("GET","/logout",self.user_logout,True)
         self.router.add_route("GET","/api/users/@me",self.get_user_info,True)
+        self.router.add_route("GET","/api/users/search",self.search_user,True)
 
 
         super().__init__(request, client_address, server)
@@ -394,6 +395,24 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             response.set_status(401, "Unauthorized")
             response.json({})
 
+        handler.request.sendall(response.to_data())
+
+    def search_user (self,request,handler):
+        data = request.path.split("?",1)
+        userparts = data[1].split("=",1)
+        search_user = userparts[-1]
+        all_users = []
+
+        if search_user:
+            search_results = self.users.find({"username":{"$regex": "^"+search_user}})
+            for results in search_results:
+                user = {
+                    "id": results["id"],
+                    "username": results["username"]
+                }
+                all_users.append(user)
+        response = Response()
+        response.json({"users": all_users})
         handler.request.sendall(response.to_data())
 
 def main():
