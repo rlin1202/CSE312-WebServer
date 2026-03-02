@@ -2,8 +2,6 @@ import socketserver
 import json
 import html
 import uuid
-from dataclasses import asdict
-from tokenize import untokenize
 
 import bcrypt
 import hashlib
@@ -14,16 +12,15 @@ from util.request import Request
 from util.response import Response
 from util.router import Router
 from util.hello_path import hello_path
-
+from util.database import chat_collection
+from util.database import user_collection
 class MyTCPHandler(socketserver.BaseRequestHandler):
 
     def __init__(self, request, client_address, server):
         self.router = Router()
 
-        mongo_client = MongoClient("mongodb://localhost:27017/")
-        self.db = mongo_client["cse312-webserver"]
-        self.users = self.db["users"]
-        self.messages = self.db["messages"]
+        self.users = user_collection
+        self.messages = chat_collection
 
         self.router.add_route("GET", "/hello", hello_path, True)
         # TODO: Add your routes here
