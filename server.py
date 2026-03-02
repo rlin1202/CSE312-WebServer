@@ -217,42 +217,69 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         filepath = request.path.split('/')
         id = str(filepath[-1])
         message = self.messages.find_one({"id":id})
-
+        isAuthorized = False
         response = Response()
 
         data = json.loads(request.body.decode())
         updated_message = html.escape(data["content"])
-        if message:
-            if request.cookies.get("session") != message.get("session"):
-                response.set_status(403,"Forbidden")
-                response.text("You just had to try it")
-            else:
-                self.messages.update_one({"id":id}, {"$set":{"content":updated_message,"updated":True}})
-                response.text("message updated")
-        else:
-            response.set_status(404,"Not Found")
-            response.text("Message Not Found")
+        session = request.cookies.get("session")
+        auth_token = request.cookies.get("auth_token")
 
+        if message:
+            if auth_token:
+                auth_user = self.users.find_one({"auth_token":auth_token})
+                if auth_user:
+                    if auth_user["username"] == message["author"]:
+                        isAuthorized = True
+            else:
+                if session:
+                    guest_user = self.users.find_one({"session":session})
+                    if guest_user:
+                        if guest_user["username"] == message["author"]:
+                            isAuthorized = True
+            if isAuthorized:
+                self.messages.update_one({"id": id}, {"$set": {"content": updated_message, "updated": True}})
+                response.text("message updated")
+            else:
+                response.set_status(403, "Forbidden")
+                response.text("You just had to try it")
+        else:
+            response.set_status(404, "Not Found")
+            response.text("Message Not Found")
         handler.request.sendall(response.to_data())
 
-    def delete_chat_message(self,request,handler):
+    def delete_chat_message(self, request, handler):
+        # file path = PATCH /api/chats/{id} assuming it looks more like /api/chats/123456
         filepath = request.path.split('/')
         id = str(filepath[-1])
         message = self.messages.find_one({"id": id})
-
+        isAuthorized = False
         response = Response()
 
-        if message:
-            if request.cookies.get("session") != message.get("session"):
-                response.set_status(403,"Forbidden")
-                response.text("HEY,THAT'S NOT NICE")
-            else:
-                self.messages.delete_one({"id":id})
-                response.text("Message Deleted")
-        else:
-            response.set_status(404,"Not Found")
-            response.text("Message Not Found")
+        session = request.cookies.get("session")
+        auth_token = request.cookies.get("auth_token")
 
+        if message:
+            if auth_token:
+                auth_user = self.users.find_one({"auth_token": auth_token})
+                if auth_user:
+                    if auth_user["username"] == message["author"]:
+                        isAuthorized = True
+            else:
+                if session:
+                    guest_user = self.users.find_one({"session": session})
+                    if guest_user:
+                        if guest_user["username"] == message["author"]:
+                            isAuthorized = True
+            if isAuthorized:
+                self.messages.delete_one({"id": id})
+                response.text("Message Deleted")
+            else:
+                response.set_status(403, "Forbidden")
+                response.text("HEY,THAT'S NOT NICE")
+        else:
+            response.set_status(404, "Not Found")
+            response.text("Message Not Found")
         handler.request.sendall(response.to_data())
 
     def update_nickname (self,request,handler):
@@ -338,7 +365,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         headers = {"Location": "/"}
         cookies = {
             "auth_token": ";Max-Age=0; Path=/",
-            "session": ";Max-Age=0; Path-/"
+            "session": ";Max-Age=0; Path=/"
         }
         response = Response()
         response.set_status(302,"Found")
