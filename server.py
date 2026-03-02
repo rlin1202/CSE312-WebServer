@@ -284,18 +284,28 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
     def update_nickname (self,request,handler):
         session_id = request.cookies.get("session")
-        user = self.users.find_one({"session":session_id})
         data = json.loads(request.body.decode())
         nickname = data.get("nickname")
         response = Response()
-
-        if user:
-            self.users.update_one({"session":session_id},{"$set":{"nickname":nickname}})
-            self.messages.update_many({"session":session_id},{"$set":{"nickname":nickname}})
-            response.text("nickname updated")
+        auth_token = request.cookies.get("auth_token")
+        if auth_token:
+            auth_user = self.users.find_one({"auth_token":auth_token})
+            if auth_user:
+                self.users.update_one({"auth_token":session_id},{"$set":{"nickname":nickname}})
+                self.messages.update_many({"author":auth_user.get("username")},{"$set":{"nickname":nickname}})
+                response.text("nickname updated")
+            else:
+                response.set_status(401, "Unauthorized")
+                response.text("Unauthorized")
         else:
-            response.set_status(404,"Not Found")
-            response.text("User Not Found")
+            guest_user = self.users.find_one(({"session":session_id}))
+            if guest_user:
+                self.users.update_one({"session":session_id},{"$set":{"nickname":nickname}})
+                self.messages.update_many({"session":session_id},{"$set":{"nickname":nickname}})
+                response.text("nickname updated")
+            else:
+                response.set_status(401, "Unauthorized")
+                response.text("Unauthorized")
 
         handler.request.sendall(response.to_data())
 
@@ -420,7 +430,6 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         password = user_info[1]
 
         response = Response()
-        update_successful = False
         auth_token = request.cookies.get("auth_token")
         if auth_token:
             user = self.users.find_one({"auth_token":auth_token})
