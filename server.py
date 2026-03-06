@@ -5,6 +5,7 @@ import uuid
 
 import bcrypt
 import hashlib
+import pyotp
 
 from pymongo import MongoClient
 from util.auth import extract_credentials, validate_password
@@ -44,6 +45,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET","/api/users/@me",self.get_user_info,True)
         self.router.add_route("GET","/api/users/search",self.search_user,False)
         self.router.add_route("POST","/api/users/settings",self.update_profile,True)
+        self.router.add_route("POST","/api/totp/enable",self.enable_2FA,True)
 
 
         super().__init__(request, client_address, server)
@@ -339,7 +341,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 response.text("Password is Invalid")
 
         handler.request.sendall(response.to_data())
-
+    #once a user logs in check if they have 2FA enabled if they do verify using PYOTPs and then issue auth token
+    #might be good to have it already as a field in database and default as false for all users.
     def user_login(self,request,handler):
         user_login = extract_credentials(request)
         username = user_login[0]
@@ -459,6 +462,27 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             response.set_status(401, "Unauthorized")
             response.text("Unauthorized")
         handler.request.sendall(response.to_data())
+
+    #enalbing 2FA
+    def enable_2FA(self,request,handler):
+        # check if user is authenticated,
+        auth_token = request.cookies.get("auth_token")
+        response = Response()
+        if auth_token:
+            secret_key = pyotp.random_base32()
+            user = self.users.find_one({"auth_token":auth_token})
+            if user:
+                self.users.update_one({"auth_token":auth_token},{"$set":{"secret":secret_key}})
+                response.json({"secret":secret_key})
+            else:
+                response.set_status(401, "Unauthorized")
+                response.text("Unauthorized")
+        else:
+            response.set_status(401, "Unauthorized")
+            response.text("Unauthorized")
+        handler.request.sendall(response.to_data())
+        #if authenticated, generate an secret key
+        #store it in a json containing our secret send it as a response
 
 def main():
     host = "0.0.0.0"

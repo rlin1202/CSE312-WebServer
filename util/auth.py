@@ -2,6 +2,7 @@ from util.request import Request
 
 def extract_credentials(request):
     #dictionary for encoding strings in password
+    #adjust code to account for otp
     encode_strings = {
         "%21": "!",
         "%40": "@",
