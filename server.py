@@ -347,25 +347,42 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         user_login = extract_credentials(request)
         username = user_login[0]
         password = user_login[1]
-
+        otp = user_login[2]
         user = self.users.find_one({"username":username})
-
+        login = False
+        need_totp = False
         response = Response()
         if user:
+            secret = user.get("secret")
             if bcrypt.checkpw(password.encode(),user["password"].encode()):
-                response.text("Login Successful")
-                token = str(uuid.uuid4())
-                auth_token = hashlib.sha256(token.encode()).hexdigest()
+                if secret:
+                    if otp:
+                        totp = pyotp.TOTP(secret)
+                        if totp.verify(otp):
+                            response.text("Login Successful")
+                            token = str(uuid.uuid4())
+                            auth_token = hashlib.sha256(token.encode()).hexdigest()
 
-                self.users.update_one({"username":username},{"$set":{"auth_token":auth_token}})
-                cookies = {"auth_token": auth_token + "; HttpOnly; Path=/"}
-                response.cookies(cookies)
+                            self.users.update_one({"username": username}, {"$set": {"auth_token": auth_token}})
+                            cookies = {"auth_token": auth_token + "; HttpOnly; Path=/"}
+                            response.cookies(cookies)
+                        else:
+                            response.set_status(400, "Invalid Credentials")
+                            response.text("Information does not match")
+                    else:
+                        response.set_status(401, "Unauthorized")
+                        response.text("2FA required")
+                else:
+                    response.text("Login Successful")
+                    token = str(uuid.uuid4())
+                    auth_token = hashlib.sha256(token.encode()).hexdigest()
+
+                    self.users.update_one({"username": username}, {"$set": {"auth_token": auth_token}})
+                    cookies = {"auth_token": auth_token + "; HttpOnly; Path=/"}
+                    response.cookies(cookies)
             else:
-                response.set_status(400,"Incorrect Password")
-                response.text("Password is Incorrect")
-        else:
-            response.set_status(400,"User Not Found")
-            response.text("User Not Found")
+                response.set_status(400, "Invalid Credentials")
+                response.text("Information does not match")
 
         handler.request.sendall(response.to_data())
 

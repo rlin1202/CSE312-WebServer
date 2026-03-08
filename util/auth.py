@@ -23,7 +23,7 @@ def extract_credentials(request):
     }
 
     data = request.body.decode()
-    body = data.split("&",1)
+    body = data.split("&")
     user_credentials = {}
     for lines in body:
         parts = lines.split("=",1)
@@ -44,8 +44,8 @@ def extract_credentials(request):
                 .replace("%5F","_")
                 .replace("%3D","=")
                 .replace("%25","%"))
-
-    return [username,password]
+    totp = user_credentials.get("totpCode")
+    return [username,password,totp]
 
 def validate_password(password):
     #length of password must be at least 8
