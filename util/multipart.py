@@ -13,7 +13,7 @@ class Parts:
         self.name = name
         self.content = content
 
-def parse_multipart(request, handler):
+def parse_multipart(request):
     #find the value of the boundary in the request headers
     #POST /form-path HTTP/1.1
     #Content-Length: 9937
@@ -36,7 +36,7 @@ def parse_multipart(request, handler):
 
     received = request.body
     while len(received) < content_length:
-        chunk = handler.request.recv(2048)
+        chunk = request.recv(2048)
         received += chunk
 
     body_parts = received.split(boundary)
@@ -68,6 +68,5 @@ def parse_multipart(request, handler):
 
         parts_obj = Parts(headers,name,content)
         parts_list.append(parts_obj)
-
     multipart = Multipart(boundary.decode(),parts_list)
     return multipart
