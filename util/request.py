@@ -54,7 +54,7 @@ class Request:
         #get contents of body from decoded request.
         #body of request appears after \r\n\r\n
         #also need to get cookie headers.
-        httpBody = request.split(b'\r\n\r\n')
+        httpBody = request.split(b'\r\n\r\n',1)
         self.body = httpBody[1]
 
 

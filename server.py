@@ -349,8 +349,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         password = user_login[1]
         otp = user_login[2]
         user = self.users.find_one({"username":username})
-        login = False
-        need_totp = False
+
         response = Response()
         if user:
             secret = user.get("secret")
