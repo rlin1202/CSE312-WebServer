@@ -57,7 +57,11 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         print(received_data)
         print("--- end of data ---\n\n")
         request = Request(received_data)
-
+        content_length = int(request.headers.get("Content-Length"))
+        if content_length:
+            while len(request.body) < content_length:
+                chunk = self.request.recv(2048)
+                request.body += chunk
         self.router.route_request(request, self)
 
     def mime_type(self, filename):

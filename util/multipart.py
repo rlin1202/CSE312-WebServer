@@ -18,55 +18,48 @@ def parse_multipart(request):
     #POST /form-path HTTP/1.1
     #Content-Length: 9937
     #Content-Type: multipart/form-data; boundary=----WebKitFormBoundarycriD3u6M0UuPR1ia
-    #------WebKitFormBoundarycriD3u6M0UuPR1ia
-    #Content-Disposition: form-data; name="commenter"\r\n\r\nJesse
-    #------WebKitFormBoundarycriD3u6M0UuPR1ia
-    #Content-Disposition: form-data; name="upload"; filename="discord.png"\r\nContent-Type: image/png\r\n\r\n<bytes_of_the_file>
+    #------WebKitFormBoundarycriD3u6M0UuPR1ia\r\n
+    #Content-Disposition: form-data; name="commenter"\r\n\r\nJesse\r\n
+    #------WebKitFormBoundarycriD3u6M0UuPR1ia\r\n
+    #Content-Disposition: form-data; name="upload"; filename="discord.png"\r\nContent-Type: image/png\r\n\r\n<bytes_of_the_file>\r\n
     #------WebKitFormBoundarycriD3u6M0UuPR1ia--
-
-    content_length = int(request.headers.get("Content-Length"))
     boundary = b"--"
     lines = request.headers.get("Content-Type").split(';')
     for line in lines:
         if line == '':
             break
-        parts = line.split('=')
-        if parts[0].strip() == "boundary":
-            boundary += parts[1].strip().encode()
-
-    received = request.body
-    while len(received) < content_length:
-        chunk = request.recv(2048)
-        received += chunk
-
-    body_parts = received.split(boundary)
-    parts_list = []
-    for part in body_parts:
-        if part == b' ':
+        boundary_parts = line.split('=')
+        if boundary_parts[0].strip() == "boundary":
+            boundary += boundary_parts[1].strip().encode()
+    parts = []
+    request_parts = request.body.split(boundary)
+    for request_part in request_parts:
+        if request_part == b'':
             break
         headers = {}
         name = ""
-        #part = Content-Disposition: form-data; name="commenter"\r\n\r\nJesse
-        part_headers = part.split(b'\r\n')
-        #parse headers
-        for header in part_headers:
-            if header == b' ':
+
+        request_headers = request_part.split(b"\r\n")
+        for header in request_headers:
+            if header == b'':
                 break
-            header_parts = header.split(b':')
+            header_parts = header.split(b':',1)
             key = header_parts[0].strip().decode()
             value = header_parts[1].strip().decode()
             headers[key] = value
-            #extract name
             if key == "Content-Disposition":
                 extract_name = headers.get("Content-Disposition").split(';')
-                for extract in extract_name:
-                    extract_parts = extract.split('=')
-                    if extract_parts[0].strip() == "name":
-                        name = extract_parts[1].strip()
-        extract_content = part.split(b'\r\n\r\n,1')
-        content = extract_content[1]
+                for name_line in extract_name:
+                    name_part = name_line.split('=')
+                    if name_part[0] == "name":
+                        name = name_part[1].strip('"').strip()
+        extract_content = request_part.split(b'\r\n\r\n',1)
+        if len(extract_content) < 2:
+            content = b''
+        else:
+            content = extract_content[1]
 
-        parts_obj = Parts(headers,name,content)
-        parts_list.append(parts_obj)
-    multipart = Multipart(boundary.decode(),parts_list)
+        part = Parts(headers,name,content)
+        parts.append(part)
+    multipart = Multipart(boundary.decode(),parts)
     return multipart
