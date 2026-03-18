@@ -15,51 +15,58 @@ class Parts:
 
 def parse_multipart(request):
     #find the value of the boundary in the request headers
-    #POST /form-path HTTP/1.1
-    #Content-Length: 9937
-    #Content-Type: multipart/form-data; boundary=----WebKitFormBoundarycriD3u6M0UuPR1ia
+    #POST /form-path HTTP/1.1\r\n
+    #Content-Length: 9937\r\n
+    #Content-Type: multipart/form-data; boundary=----WebKitFormBoundarycriD3u6M0UuPR1ia\r\n\r\n
     #------WebKitFormBoundarycriD3u6M0UuPR1ia\r\n
     #Content-Disposition: form-data; name="commenter"\r\n\r\nJesse\r\n
     #------WebKitFormBoundarycriD3u6M0UuPR1ia\r\n
     #Content-Disposition: form-data; name="upload"; filename="discord.png"\r\nContent-Type: image/png\r\n\r\n<bytes_of_the_file>\r\n
     #------WebKitFormBoundarycriD3u6M0UuPR1ia--
-    boundary = b"--"
-    lines = request.headers.get("Content-Type").split(';')
-    for line in lines:
-        if line == '':
-            break
-        boundary_parts = line.split('=')
+
+    #extract boundary to extact parts in multipart request
+    boundary = ""
+    extract_boundary = request.headers.get("Content-Type").split(';')
+    for boundary_line in extract_boundary:
+        boundary_parts = boundary_line.split('=')
         if boundary_parts[0].strip() == "boundary":
-            boundary += boundary_parts[1].strip().encode()
-    parts = []
-    request_parts = request.body.split(boundary)
-    for request_part in request_parts:
-        if request_part == b'':
-            break
-        headers = {}
-        name = ""
-        headers_part,extract_content = request_part.split(b'\r\n\r\n', 1)
+            boundary = boundary_parts[1].strip()
 
-        request_headers = headers_part.split(b"\r\n")
-        for header in request_headers:
-            if header == b'':
-                break
-            header_parts = header.split(b':',1)
-            key = header_parts[0].strip().decode()
-            value = header_parts[1].strip().decode()
-            headers[key] = value
-            if key == "Content-Disposition":
-                extract_name = headers.get("Content-Disposition").split(';')
-                for name_line in extract_name:
-                    name_part = name_line.split('=')
-                    if name_part[0] == "name":
-                        name = name_part[1].strip('"').strip()
-        if len(extract_content) < 2:
-            content = b''
-        else:
-            content = extract_content[1]
+    extract_parts = request.body.split(b'--'+boundary.encode())
 
-        part = Parts(headers,name,content)
-        parts.append(part)
-    multipart = Multipart(boundary.decode(),parts)
-    return multipart
+
+def test():
+    request = Request(
+        b'POST /form-path HTTP/1.1\r\n'
+        b'Content-Length: 379\r\n'
+        b'Content-Type: multipart/form-data; boundary=----WebKitFormBoundarycriD3u6M0UuPR1ia\r\n\r\n'
+        b'------WebKitFormBoundarycriD3u6M0UuPR1ia\r\n'
+        b'Content-Disposition: form-data; name="commenter"\r\n\r\n'
+        b'Jesse\r\n'
+        b'------WebKitFormBoundarycriD3u6M0UuPR1ia\r\n'
+        b'Content-Disposition: form-data; name="upload"; filename=discord.png\r\n'
+        b'Content-Type: image/png\r\n\r\n' 
+        b'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4XmNgYGD4DwABBAEA43qFxAAAAABJRU5ErkJggg==\r\n'
+        b'------WebKitFormBoundarycriD3u6M0UuPR1ia--'
+    )
+
+    multipart_request = parse_multipart(request)
+    assert multipart_request.boundary == "----WebKitFormBoundarycriD3u6M0UuPR1ia"
+    #assert len(multipart_request.parts) == 2
+
+    Part_1 = multipart_request.parts[0]
+    assert Part_1.headers.__contains__('Content-Disposition')
+    assert Part_1.headers['Content-Disposition'] == 'form-data; name="commenter"'
+    assert Part_1.name == 'commenter'
+    assert Part_1.content == b'Jesse'
+
+    Part_2 = multipart_request.parts[1]
+    assert Part_2.headers.__contains__(b'Content-Disposition')
+    assert Part_2.headers[b'Content-Disposition'] == b'form-data; name="upload"; filename=discord.png'
+    assert Part_2.name == b'upload'
+    assert Part_2.content == b'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4XmNgYGD4DwABBAEA43qFxAAAAABJRU5ErkJggg=='
+
+    print('Test Passed!')
+
+if __name__ == '__main__':
+    test()
