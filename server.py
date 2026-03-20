@@ -33,6 +33,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET", "/login", self.render_login, True)
         self.router.add_route("GET", "/settings", self.render_settings, True)
         self.router.add_route("GET", "/search-users", self.render_search, True)
+        self.router.add_route("GET","/change-avatar",self.render_avatar,True)
         #functionality
         self.router.add_route("POST","/api/chats",self.create_chat_message, True)
         self.router.add_route("GET","/api/chats",self.get_chat_message, True)
@@ -57,9 +58,9 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         print(received_data)
         print("--- end of data ---\n\n")
         request = Request(received_data)
-        content_length = int(request.headers.get("Content-Length"))
+        content_length = request.headers.get("Content-Length")
         if content_length:
-            while len(request.body) < content_length:
+            while len(request.body) < int(content_length):
                 chunk = self.request.recv(2048)
                 request.body += chunk
         self.router.route_request(request, self)
@@ -139,6 +140,9 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
     def render_search(self, request, handler):
         self.render_file(request,handler,"public/search-users.html")
+
+    def render_avatar(self,request,handler):
+        self.render_file(request,handler,"public/change-avatar.html")
 
     def create_chat_message(self, request, handler):
         response = Response()
@@ -386,7 +390,9 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             else:
                 response.set_status(400, "Invalid Credentials")
                 response.text("Information does not match")
-
+        else:
+            response.set_status(400, "Invalid Credentials")
+            response.text("Information does not match")
         handler.request.sendall(response.to_data())
 
     def user_logout(self,request,handler):
