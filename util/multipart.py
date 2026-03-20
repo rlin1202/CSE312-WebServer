@@ -43,7 +43,8 @@ def parse_multipart(request):
             break
         if extract_part == b'':
             continue
-        header_parts = extract_part.split(b'\r\n')
+        headers_section, content = extract_part.split(b'\r\n\r\n', 1)
+        header_parts = headers_section.split(b'\r\n')
         for header in header_parts:
             if header == b'':
                 break
@@ -58,11 +59,7 @@ def parse_multipart(request):
                     name_part = name_line.split('=')
                     if name_part[0].strip() == "name":
                         name = name_part[1].strip('"')
-        extract_body = extract_part.split(b'\r\n\r\n')
-        if len(extract_body) < 2:
-            content = b''
-        else:
-            content = extract_body[1].strip(b'\r\n')
+        content.removesuffix(b'\r\n')
         part = Parts(headers,name,content)
         parts.append(part)
     multipart = Multipart(boundary,parts)
