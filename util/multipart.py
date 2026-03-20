@@ -59,7 +59,7 @@ def parse_multipart(request):
                     name_part = name_line.split('=')
                     if name_part[0].strip() == "name":
                         name = name_part[1].strip('"')
-        content.removesuffix(b'\r\n')
+        content = content.removesuffix(b'\r\n')
         part = Parts(headers,name,content)
         parts.append(part)
     multipart = Multipart(boundary,parts)
