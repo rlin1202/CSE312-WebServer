@@ -9,6 +9,7 @@ import pyotp
 
 from pymongo import MongoClient
 from util.auth import extract_credentials, validate_password
+from util.multipart import parse_multipart, Parts, Multipart
 from util.request import Request
 from util.response import Response
 from util.router import Router
@@ -509,6 +510,30 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         handler.request.sendall(response.to_data())
         #if authenticated, generate an secret key
         #store it in a json containing our secret send it as a response
+
+    def change_avatar(self,request,handler):
+        auth_token = request.cookies.get("auth_token")
+        response = Response()
+        if auth_token:
+            user = self.users.find_one({"auth_token":auth_token})
+            if user:
+                multipart_request = parse_multipart(request)
+                parts = multipart_request.parts
+                content = b''
+                filename = ""
+                for part in parts:
+                    content_type = part.headers.get("Content-Type")
+                    if content_type and content_type.startswith("image/"):
+                        content = part.content
+                        extract_disposition = part.headers.get("Content-Disposition").split(';')
+                        for disposition_parts in extract_disposition:
+                        # form-data; name="upload"; filename="discord.png"
+                            if disposition_parts == "form-data":
+                                continue
+                            disposition_part = disposition_parts.split('=')
+                            if disposition_part[0].strip() == "filename":
+                                filename = disposition_part[1].strip('"')
+
 
 def main():
     host = "0.0.0.0"
