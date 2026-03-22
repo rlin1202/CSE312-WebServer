@@ -38,7 +38,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET","/change-avatar",self.render_avatar,True)
         self.router.add_route("GET","/videotube",self.render_videoTube,True)
         self.router.add_route("GET","/videotube/upload",self.render_video_upload,True)
-        self.router.add_route("GET","/videotube/videos/",self.render_view_video(),False)
+        self.router.add_route("GET","/videotube/videos/",self.render_view_video,False)
         #functionality
         self.router.add_route("POST","/api/chats",self.create_chat_message, True)
         self.router.add_route("GET","/api/chats",self.get_chat_message, True)
@@ -85,12 +85,14 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             "htm": "text/html; charset=utf-8",
             "js": "text/javascript; charset=utf-8",
             "jpg": "image/jpeg",
+            "jpeg": "image/jpeg",
+            "png": "image/png",
             "gif": "image/gif",
             "webp": "image/webp",
             "ico": "image/x-icon"
         }
         content = filename.split(".")
-        if content[-1] in types:
+        if content[-1].lower() in types:
             return types[content[-1]]
         else:
             return "text/plain; charset=UTF-8"
