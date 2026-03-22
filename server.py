@@ -598,7 +598,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                         content = part.content
                     elif part.name == "title":
                         title = part.content.decode()
-                    else:
+                    elif part.name == "description":
                         description = part.content.decode()
                 video_id = str(uuid.uuid4())
                 file_name = f"{video_id}.mp4"
@@ -613,7 +613,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                     "author_id": user["username"],
                     "title": title,
                     "description":description,
-                    "video_path": file_url,
+                    "video_path": file_name,
                     "created_at": current_time
                 }
 
@@ -636,7 +636,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             video["author_id"] = upload["author_id"]
             video["title"] = upload["title"]
             video["description"] = upload["description"]
-            video["video_path"] = upload["video_path"]
+            video["video_path"] = "/public/videos/"+upload["video_path"]
             video["created_at"] = upload["created_at"]
             video["id"] = upload["id"]
             all_videos.append(video)
@@ -654,7 +654,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 "author_id": video["author_id"],
                 "title": video["title"],
                 "description": video["description"],
-                "video_path": video["video_path"],
+                "video_path": "/public/videos/"+video["video_path"],
                 "created_at": video["created_at"],
                 "id":video["id"]
             }
