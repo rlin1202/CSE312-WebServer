@@ -2,6 +2,7 @@ import socketserver
 import json
 import html
 import uuid
+import os
 
 import bcrypt
 import hashlib
@@ -35,6 +36,9 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET", "/settings", self.render_settings, True)
         self.router.add_route("GET", "/search-users", self.render_search, True)
         self.router.add_route("GET","/change-avatar",self.render_avatar,True)
+        self.router.add_route("GET","/videotube",self.render_videoTube,True)
+        self.router.add_route("GET","/videotube/upload",self.render_video_upload,True)
+        self.router.add_route("GET","/videotube/videos/",self.render_view_video(),False)
         #functionality
         self.router.add_route("POST","/api/chats",self.create_chat_message, True)
         self.router.add_route("GET","/api/chats",self.get_chat_message, True)
@@ -48,6 +52,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET","/api/users/search",self.search_user,False)
         self.router.add_route("POST","/api/users/settings",self.update_profile,True)
         self.router.add_route("POST","/api/totp/enable",self.enable_2FA,True)
+        self.router.add_route("POST","/api/users/avatar",self.change_avatar,True)
 
 
         super().__init__(request, client_address, server)
@@ -145,6 +150,15 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
     def render_avatar(self,request,handler):
         self.render_file(request,handler,"public/change-avatar.html")
 
+    def render_videoTube(self,request,handler):
+        self.render_file(request,handler,"public/videotube.html")
+
+    def render_video_upload(self,request,handler):
+        self.render_file(request,handler,"public/upload.html")
+
+    def render_view_video(self,request,handler):
+        self.render_file(request,handler,"public/view-video.html")
+
     def create_chat_message(self, request, handler):
         response = Response()
         data = json.loads(request.body.decode())
@@ -201,6 +215,9 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             nickname = current_user.get("nickname")
             if nickname:
                 message_info["nickname"] = nickname
+            imageURL = current_user.get("imageURL")
+            if imageURL:
+                message_info["imageURL"] = imageURL
 
         self.messages.insert_one(message_info)
 
@@ -218,6 +235,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             chat["nickname"] = messages.get("nickname")
             chat["content"] = messages["content"]
             chat["updated"] = messages["updated"]
+            chat["imageURL"] =  messages.get("imageURL")
             all_chat.append(chat)
         response = Response()
         response.json({"messages": all_chat})
@@ -423,7 +441,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             if user:
                 user_info = {
                     "username": user["username"],
-                    "id": user["id"]
+                    "id": user["id"],
+                    "imageURL": user.get("imageURL")
                 }
                 response.json(user_info)
             else:
@@ -520,7 +539,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 multipart_request = parse_multipart(request)
                 parts = multipart_request.parts
                 content = b''
-                filename = ""
+                extension = ""
                 for part in parts:
                     content_type = part.headers.get("Content-Type")
                     if content_type and content_type.startswith("image/"):
@@ -533,6 +552,28 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                             disposition_part = disposition_parts.split('=')
                             if disposition_part[0].strip() == "filename":
                                 filename = disposition_part[1].strip('"')
+                                get_extension = filename.split('.')
+                                extension = get_extension[-1]
+                file_name = f"{str(uuid.uuid4())}.{extension}"
+                file_path = f"public/imgs/profile-pics/{file_name}"
+                imageURL = f"/public/imgs/profile-pics/{file_name}"
+                with open(file_path,'wb') as f:
+                    f.write(content)
+                old_imageURL = user.get("imageURL")
+                if old_imageURL:
+                    old_image_path = old_imageURL.lstrip('/')
+                    if os.path.exists(old_image_path):
+                        os.remove(old_image_path)
+                self.users.update_one({"auth_token":auth_token},{"$set":{"imageURL":imageURL}})
+                response.text("Avatar Successfully Uploaded")
+            else:
+                response.set_status(401, "Unauthorized")
+                response.text("Unauthorized")
+        else:
+            response.set_status(401, "Unauthorized")
+            response.text("Unauthorized")
+        handler.request.sendall(response.to_data())
+
 
 
 def main():
