@@ -16,3 +16,4 @@ else:
 db = mongo_client["cse312"]
 chat_collection = db["chat"]
 user_collection = db["users"]
+video_collection = db["videos"]

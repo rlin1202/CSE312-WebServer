@@ -15,8 +15,8 @@ from util.request import Request
 from util.response import Response
 from util.router import Router
 from util.hello_path import hello_path
-from util.database import chat_collection
-from util.database import user_collection
+from util.database import chat_collection, user_collection, video_collection
+
 class MyTCPHandler(socketserver.BaseRequestHandler):
 
     def __init__(self, request, client_address, server):
@@ -24,6 +24,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
         self.users = user_collection
         self.messages = chat_collection
+        self.videos = video_collection
 
         self.router.add_route("GET", "/hello", hello_path, True)
         # TODO: Add your routes here
@@ -575,6 +576,9 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             response.set_status(401, "Unauthorized")
             response.text("Unauthorized")
         handler.request.sendall(response.to_data())
+
+    def upload_video(self,request,handler):
+        pass
 
 
 
