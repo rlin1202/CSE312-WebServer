@@ -4,11 +4,13 @@ import html
 import uuid
 import os
 
+
 import bcrypt
 import hashlib
 import pyotp
 
 from pymongo import MongoClient
+from datetime import datetime
 from util.auth import extract_credentials, validate_password
 from util.multipart import parse_multipart, Parts, Multipart
 from util.request import Request
@@ -54,7 +56,9 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("POST","/api/users/settings",self.update_profile,True)
         self.router.add_route("POST","/api/totp/enable",self.enable_2FA,True)
         self.router.add_route("POST","/api/users/avatar",self.change_avatar,True)
-
+        self.router.add_route("POST","/api/videos",self.upload_video,True)
+        self.router.add_route("GET", "/api/videos", self.get_videos_all, True)
+        self.router.add_route("GET", "/api/videos/", self.get_videos_one, False)
 
         super().__init__(request, client_address, server)
 
@@ -90,7 +94,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             "png": "image/png",
             "gif": "image/gif",
             "webp": "image/webp",
-            "ico": "image/x-icon"
+            "ico": "image/x-icon",
+            "mp4": "video/mp4"
         }
         content = filename.split(".")
         if content[-1].lower() in types:
@@ -578,8 +583,86 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         handler.request.sendall(response.to_data())
 
     def upload_video(self,request,handler):
-        pass
+        auth_token = request.cookies.get("auth_token")
+        response = Response()
+        if auth_token:
+            user = self.users.find_one({"auth_token":auth_token})
+            if user:
+                multi_part = parse_multipart(request)
+                parts = multi_part.parts
+                content = b""
+                title = ""
+                description = ""
+                for part in parts:
+                    if part.name == "video":
+                        content = part.content
+                    elif part.name == "title":
+                        title = part.content.decode()
+                    else:
+                        description = part.content.decode()
+                video_id = str(uuid.uuid4())
+                file_name = f"{video_id}.mp4"
+                file_path = f"public/videos/{file_name}"
+                file_url = f"/public/videos/{file_name}"
+                with open(file_path,"wb") as f:
+                    f.write(content)
 
+                current_time = datetime.now().isoformat()
+                video = {
+                    "id": video_id,
+                    "author_id": user["username"],
+                    "title": title,
+                    "description":description,
+                    "video_path": file_url,
+                    "created_at": current_time
+                }
+
+                self.videos.insert_one(video)
+                response.json({"id":video_id})
+            else:
+                response.set_status(401, "Unauthorized")
+                response.text("Unauthorized")
+        else:
+            response.set_status(401, "Unauthorized")
+            response.text("Unauthorized")
+        handler.request.sendall(response.to_data())
+
+    def get_videos_all(self,request,handler):
+        all_uploads = self.videos.find({})
+        all_videos = []
+        for upload in all_uploads:
+        #{"videos": [{"author_id": str, "title": str, "description": str, "video_path": str,"created_at": str "id": str}, ...]}
+            video = {}
+            video["author_id"] = upload["author_id"]
+            video["title"] = upload["title"]
+            video["description"] = upload["description"]
+            video["video_path"] = upload["video_path"]
+            video["created_at"] = upload["created_at"]
+            video["id"] = upload["id"]
+            all_videos.append(video)
+        response = Response()
+        response.json({"videos":all_videos})
+        handler.request.sendall(response.to_data())
+
+    def get_videos_one(self,request,handler):
+        response = Response()
+        filepath = request.path.split('/')
+        video_id = filepath[-1]
+        video = self.videos.find_one({"id":video_id})
+        if video:
+            video_info = {
+                "author_id": video["author_id"],
+                "title": video["title"],
+                "description": video["description"],
+                "video_path": video["video_path"],
+                "created_at": video["created_at"],
+                "id":video["id"]
+            }
+            response.json({"video":video_info})
+        else:
+            response.set_status(404,"Not Found")
+            response.text("Video not found")
+        handler.request.sendall(response.to_data())
 
 
 def main():
