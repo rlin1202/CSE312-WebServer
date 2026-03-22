@@ -41,7 +41,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET","/change-avatar",self.render_avatar,True)
         self.router.add_route("GET","/videotube",self.render_videoTube,True)
         self.router.add_route("GET","/videotube/upload",self.render_video_upload,True)
-        self.router.add_route("GET","/videotube/videos/",self.render_view_video,False)
+        self.router.add_route("GET","/videotube/videos",self.render_view_video,False)
         #functionality
         self.router.add_route("POST","/api/chats",self.create_chat_message, True)
         self.router.add_route("GET","/api/chats",self.get_chat_message, True)
@@ -58,7 +58,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("POST","/api/users/avatar",self.change_avatar,True)
         self.router.add_route("POST","/api/videos",self.upload_video,True)
         self.router.add_route("GET", "/api/videos", self.get_videos_all, True)
-        self.router.add_route("GET", "/api/videos/", self.get_videos_one, False)
+        self.router.add_route("GET", "/api/videos", self.get_videos_one, False)
 
         super().__init__(request, client_address, server)
 
@@ -613,7 +613,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                     "author_id": user["username"],
                     "title": title,
                     "description":description,
-                    "video_path": file_name,
+                    "video_path": file_url,
                     "created_at": current_time
                 }
 
@@ -636,7 +636,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             video["author_id"] = upload["author_id"]
             video["title"] = upload["title"]
             video["description"] = upload["description"]
-            video["video_path"] = "/public/videos/"+upload["video_path"]
+            video["video_path"] = upload["video_path"]
             video["created_at"] = upload["created_at"]
             video["id"] = upload["id"]
             all_videos.append(video)
@@ -654,7 +654,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 "author_id": video["author_id"],
                 "title": video["title"],
                 "description": video["description"],
-                "video_path": "/public/videos/"+video["video_path"],
+                "video_path": video["video_path"],
                 "created_at": video["created_at"],
                 "id":video["id"]
             }
