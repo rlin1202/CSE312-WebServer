@@ -41,7 +41,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET","/change-avatar",self.render_avatar,True)
         self.router.add_route("GET","/videotube",self.render_videoTube,True)
         self.router.add_route("GET","/videotube/upload",self.render_video_upload,True)
-        self.router.add_route("GET","/videotube/videos",self.render_view_video,False)
+        self.router.add_route("GET","/videotube/videos/",self.render_view_video,False)
         #functionality
         self.router.add_route("POST","/api/chats",self.create_chat_message, True)
         self.router.add_route("GET","/api/chats",self.get_chat_message, True)
@@ -58,7 +58,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("POST","/api/users/avatar",self.change_avatar,True)
         self.router.add_route("POST","/api/videos",self.upload_video,True)
         self.router.add_route("GET", "/api/videos", self.get_videos_all, True)
-        self.router.add_route("GET", "/api/videos", self.get_videos_one, False)
+        self.router.add_route("GET", "/api/videos/", self.get_videos_one, False)
 
         super().__init__(request, client_address, server)
 
@@ -602,8 +602,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                         description = part.content.decode()
                 video_id = str(uuid.uuid4())
                 file_name = f"{video_id}.mp4"
-                file_path = f"public/videos/{file_name}"
-                file_url = f"/public/videos/{file_name}"
+                file_path = f"public/{file_name}"
+                file_url = f"/public/{file_name}"
                 with open(file_path,"wb") as f:
                     f.write(content)
 
