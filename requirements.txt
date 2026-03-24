@@ -2,3 +2,4 @@ pymongo
 bcrypt
 pyotp
 datetime
+ffmpeg
