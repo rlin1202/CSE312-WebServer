@@ -18,6 +18,7 @@ from util.response import Response
 from util.router import Router
 from util.hello_path import hello_path
 from util.database import chat_collection, user_collection, video_collection
+from util.websockets import compute_accept
 
 class MyTCPHandler(socketserver.BaseRequestHandler):
 
@@ -70,6 +71,22 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         print("--- end of data ---\n\n")
         request = Request(received_data)
         content_length = request.headers.get("Content-Length")
+        connection = request.headers.get("Connection")
+        upgradeToWS = request.headers.get("Upgrade")
+
+        if connection and connection == "Upgrade":
+            if upgradeToWS and upgradeToWS == "Websocket":
+                ws_key = request.headers.get("Sec-WebSocket-Key")
+                accept_key = compute_accept(ws_key)
+
+                response = Response()
+                response.set_status(101,"Switching Protocols")
+                response.headers({
+                    "Connection": "Upgrade",
+                    "Upgrade": "websocket",
+                    "Sec-Websocket-Accept": accept_key
+                })
+
         if content_length:
             while len(request.body) < int(content_length):
                 chunk = self.request.recv(2048)

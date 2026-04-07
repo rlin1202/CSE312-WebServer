@@ -12,9 +12,9 @@ class WS_Frame:
 def compute_accept(ws_key):
     GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     key = ws_key + GUID
-    hashed_key = hashlib.sha1(key).digest()
+    hashed_key = hashlib.sha1(key.encode()).digest()
 
-    return base64.b64decode(hashed_key)
+    return base64.b64encode(hashed_key).decode()
 
 def parse_ws_frame(data):
     #return a ws_frame obj
@@ -30,3 +30,5 @@ def test_compute_accept():
     assert compute_accept(key) == accept
     print("test passed")
 
+if __name__ == '__main__':
+    test_compute_accept()
