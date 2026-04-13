@@ -1,9 +1,10 @@
 import socketserver
 import json
 import html
+import threading
 import uuid
 import os
-
+from cgitb import handler
 
 import bcrypt
 import hashlib
@@ -17,8 +18,11 @@ from util.request import Request
 from util.response import Response
 from util.router import Router
 from util.hello_path import hello_path
-from util.database import chat_collection, user_collection, video_collection
-from util.websockets import compute_accept
+from util.database import chat_collection, user_collection, video_collection,drawing_collection
+from util.websockets import compute_accept, parse_ws_frame,generate_ws_frame
+
+connections = {}
+
 
 class MyTCPHandler(socketserver.BaseRequestHandler):
 
@@ -43,6 +47,10 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("GET","/videotube",self.render_videoTube,True)
         self.router.add_route("GET","/videotube/upload",self.render_video_upload,True)
         self.router.add_route("GET","/videotube/videos/",self.render_view_video,False)
+        self.router.add_route("GET", "/test-websocket", self.render_test_websocket, True)
+        self.router.add_route("GET", "/drawing-board", self.render_drawing_board, True)
+        self.router.add_route("GET", "/video-call", self.render_video_call, True)
+        self.router.add_route("GET", "/video-call/", self.render_video_call_room, False)
         #functionality
         self.router.add_route("POST","/api/chats",self.create_chat_message, True)
         self.router.add_route("GET","/api/chats",self.get_chat_message, True)
@@ -75,7 +83,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         upgradeToWS = request.headers.get("Upgrade")
 
         if connection and connection == "Upgrade":
-            if upgradeToWS and upgradeToWS == "Websocket":
+            if upgradeToWS and upgradeToWS == "websocket":
                 ws_key = request.headers.get("Sec-WebSocket-Key")
                 accept_key = compute_accept(ws_key)
 
@@ -86,12 +94,96 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                     "Upgrade": "websocket",
                     "Sec-Websocket-Accept": accept_key
                 })
+                self.request.sendall(response.to_data())
+                self.websocket(request)
+                return
 
         if content_length:
             while len(request.body) < int(content_length):
                 chunk = self.request.recv(2048)
                 request.body += chunk
         self.router.route_request(request, self)
+
+    def ws_broadcast_users(self):
+        users = []
+
+        for user in connections.values():
+            users.append({"username":user})
+        response = json.dumps({"messageType":"active_users_list","users":users})
+        for handler in connections:
+            handler.request.sendall(generate_ws_frame(response.encode()))
+
+    def ws_send_init_strokes(self):
+        strokes = []
+        all_drawings = drawing_collection.find({})
+        for drawing in all_drawings:
+            stroke = {
+                "startX": drawing["startX"],
+                "startY": drawing["startY"],
+                "endX": drawing["endX"],
+                "endY": drawing["endY"],
+                "color": drawing["color"]
+            }
+            strokes.append(stroke)
+        response = json.dumps({"messageType":"init_strokes","strokes":strokes})
+        self.request.sendall(generate_ws_frame(response.encode()))
+
+    def websocket(self,request):
+        auth_token = request.cookies.get("auth_token")
+        username = ""
+        if auth_token:
+            user = self.users.find_one({"auth_token":auth_token})
+            if user:
+                username = user.get("username")
+            else:
+                return
+
+        connections[self] = username
+        self.ws_broadcast_users()
+        self.ws_send_init_strokes()
+
+        buffer = b''
+        while True:
+            data = self.request.recv(2048)
+            if not data:
+                break
+
+            buffer += data
+
+            temp_frame = parse_ws_frame(buffer)
+
+            if len(temp_frame.payload) < temp_frame.payload_length:
+                continue
+
+            ws_frame = parse_ws_frame(buffer)
+            buffer = b''
+
+            if ws_frame.opcode == 0x8:
+                break
+
+            message = json.loads(ws_frame.payload.decode())
+            message_type = message.get("messageType")
+            response = None
+
+            if message_type == "echo_client":
+                text = message.get("text")
+                response = json.dumps({"messageType": "echo_server","text":text})
+                self.request.sendall(generate_ws_frame(response.encode()))
+            if message_type == "drawing":
+                stroke = {
+                    "startX": message["startX"],
+                    "startY": message["startY"],
+                    "endX": message["endX"],
+                    "endY": message["endY"],
+                    "color": message["color"]
+                }
+                drawing_collection.insert_one(stroke)
+                response = json.dumps(message)
+                for handler in connections:
+                    handler.request.sendall(generate_ws_frame(response.encode()))
+        connections.pop(self,None)
+        self.ws_broadcast_users()
+
 
     def mime_type(self, filename):
 
@@ -183,6 +275,18 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
     def render_view_video(self,request,handler):
         self.render_file(request,handler,"public/view-video.html")
+
+    def render_test_websocket(self, request, handler):
+        self.render_file(request, handler, "public/test-websocket.html")
+
+    def render_drawing_board(self, request, handler):
+        self.render_file(request, handler, "public/drawing-board.html")
+
+    def render_video_call(self, request, handler):
+        self.render_file(request, handler, "public/video-call.html")
+
+    def render_video_call_room(self, request, handler):
+        self.render_file(request, handler, "public/video-call-room.html")
 
     def create_chat_message(self, request, handler):
         response = Response()
