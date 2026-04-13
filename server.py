@@ -152,7 +152,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
             data += chunk
 
-            if len(data) > 2:
+            if len(data) < 2:
                 continue
 
             mask = data[1] >> 7
