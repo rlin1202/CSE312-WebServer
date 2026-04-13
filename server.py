@@ -137,6 +137,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 username = user.get("username")
             else:
                 return
+        else:
+            return
 
         connections[self] = username
         self.ws_broadcast_users()
