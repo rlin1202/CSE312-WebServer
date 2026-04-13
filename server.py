@@ -1,10 +1,10 @@
 import socketserver
 import json
 import html
-import threading
+import struct
 import uuid
 import os
-from cgitb import handler
+
 
 import bcrypt
 import hashlib
@@ -144,21 +144,46 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.ws_broadcast_users()
         self.ws_send_init_strokes()
 
-        buffer = b''
+        data = b''
         while True:
-            data = self.request.recv(2048)
-            if not data:
+            chunk = self.request.recv(2048)
+            if not chunk:
                 break
 
-            buffer += data
+            data += chunk
 
-            temp_frame = parse_ws_frame(buffer)
-
-            if len(temp_frame.payload) < temp_frame.payload_length:
+            if len(data) > 2:
                 continue
 
-            ws_frame = parse_ws_frame(buffer)
-            buffer = b''
+            mask = data[1] >> 7
+            payload_len = data[1] & 0b1111111
+
+            headers = 2
+            if payload_len == 126:
+                headers+=2
+            elif payload_len == 127:
+                headers+=8
+
+            if mask == 1:
+                headers+=4
+
+            if len(data) < headers:
+                continue
+
+            if payload_len == 126:
+                actual_len = struct.unpack('>H', data[2:4])[0]
+            elif payload_len == 127:
+                actual_len = struct.unpack('>Q', data[2:10])[0]
+            else:
+                actual_len = payload_len
+
+            ws_frame_size = headers + actual_len
+
+            if len(data) < ws_frame_size:
+                continue
+
+            ws_frame = parse_ws_frame(data[:ws_frame_size])
+            data = data[ws_frame_size:]
 
             if ws_frame.opcode == 0x8:
                 break
