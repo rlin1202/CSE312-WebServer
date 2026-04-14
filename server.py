@@ -6,6 +6,7 @@ import uuid
 import os
 
 
+
 import bcrypt
 import hashlib
 import pyotp
@@ -18,7 +19,7 @@ from util.request import Request
 from util.response import Response
 from util.router import Router
 from util.hello_path import hello_path
-from util.database import chat_collection, user_collection, video_collection,drawing_collection
+from util.database import chat_collection, user_collection, video_collection,drawing_collection,meeting_rooms
 from util.websockets import compute_accept, parse_ws_frame,generate_ws_frame
 
 connections = {}
@@ -145,6 +146,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.ws_send_init_strokes()
 
         data = b''
+        payload_message = b''
         while True:
             chunk = self.request.recv(2048)
             if not chunk:
@@ -188,26 +190,21 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             if ws_frame.opcode == 0x8:
                 break
 
-            message = json.loads(ws_frame.payload.decode())
-            message_type = message.get("messageType")
-            response = None
+            payload_message += ws_frame.payload
+            if ws_frame.fin_bit == 0:
+                continue
+
+            message_type = None
+            message = None
+            if ws_frame.fin_bit == 1:
+                message = json.loads(payload_message.decode())
+                payload_message = b''
+                message_type = message.get("messageType")
 
             if message_type == "echo_client":
-                text = message.get("text")
-                response = json.dumps({"messageType": "echo_server","text":text})
-                self.request.sendall(generate_ws_frame(response.encode()))
+                self.ws_echo_client(message)
             if message_type == "drawing":
-                stroke = {
-                    "startX": message["startX"],
-                    "startY": message["startY"],
-                    "endX": message["endX"],
-                    "endY": message["endY"],
-                    "color": message["color"]
-                }
-                drawing_collection.insert_one(stroke)
-                response = json.dumps(message)
-                for handler in connections:
-                    handler.request.sendall(generate_ws_frame(response.encode()))
+                self.ws_drawing_board(message)
         connections.pop(self,None)
         self.ws_broadcast_users()
 
@@ -811,6 +808,41 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             response.set_status(404,"Not Found")
             response.text("Video not found")
         handler.request.sendall(response.to_data())
+
+    def ws_echo_client(self,message):
+        text = message.get("text")
+        response = json.dumps({"messageType": "echo_server", "text": text})
+        self.request.sendall(generate_ws_frame(response.encode()))
+
+    def ws_drawing_board(self,message):
+        stroke = {
+            "startX": message["startX"],
+            "startY": message["startY"],
+            "endX": message["endX"],
+            "endY": message["endY"],
+            "color": message["color"]
+        }
+        drawing_collection.insert_one(stroke)
+        response = json.dumps(message)
+        for handler in connections:
+            handler.request.sendall(generate_ws_frame(response.encode()))
+
+    def create_video_call(self,request,handler):
+        response = Response()
+        data = json.loads(request.body)
+
+        name = data["name"]
+        room_id = str(uuid.uuid4())
+
+        meeting_room = {
+            "name": name,
+            "id": room_id
+        }
+
+        meeting_rooms.insert_one(meeting_room)
+        response.json({"id": room_id})
+        self.request.sendall(response.to_data())
+
 
 
 def main():
