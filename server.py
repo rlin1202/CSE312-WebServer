@@ -23,6 +23,8 @@ from util.database import chat_collection, user_collection, video_collection,dra
 from util.websockets import compute_accept, parse_ws_frame,generate_ws_frame
 
 connections = {}
+meetings = {}
+socketIDs = {}
 
 
 class MyTCPHandler(socketserver.BaseRequestHandler):
@@ -69,6 +71,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.router.add_route("POST","/api/videos",self.upload_video,True)
         self.router.add_route("GET", "/api/videos", self.get_videos_all, True)
         self.router.add_route("GET", "/api/videos/", self.get_videos_one, False)
+        self.router.add_route("POST","/api/video-calls",self.create_video_call,True)
 
         super().__init__(request, client_address, server)
 
@@ -142,6 +145,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             return
 
         connections[self] = username
+        socketIDs[self] = str(uuid.uuid4())
         self.ws_broadcast_users()
         self.ws_send_init_strokes()
 
@@ -205,6 +209,26 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 self.ws_echo_client(message)
             if message_type == "drawing":
                 self.ws_drawing_board(message)
+            if message_type == "get_calls":
+                self.get_calls()
+            if message_type == "join_call":
+                self.call_info(message)
+
+        socketID = socketIDs.pop(self,None)
+
+        for meeting in meetings:
+            members = meetings[meeting]
+            if self in members:
+                members.discard(self)
+                response = json.dumps({
+                    "messageType": "user_left",
+                    "socketId": socketID
+                })
+                for member in members:
+                    member.request.sendall(generate_ws_frame(response.encode()))
+                break
+
+
         connections.pop(self,None)
         self.ws_broadcast_users()
 
@@ -843,7 +867,31 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         response.json({"id": room_id})
         self.request.sendall(response.to_data())
 
+    def get_calls(self):
+        calls = []
+        all_meetings = meeting_rooms.find({})
+        for room in all_meetings:
+            meeting = {
+                "name":room["name"],
+                "id":room["id"]
+            }
+            calls.append(meeting)
+        response = json.dumps({
+            "messageType": "call_list",
+            "calls": calls
+        })
+        self.request.sendall(generate_ws_frame(response.encode()))
 
+    def call_info(self,message):
+        id = message.get("callId")
+        meeting = meeting_rooms.find({"id":id})
+
+        response = json.dumps({
+            "messageType": "call_info",
+            "name": meeting["name"]
+        })
+
+        self.request.sendall(generate_ws_frame(response.encode()))
 
 def main():
     host = "0.0.0.0"
