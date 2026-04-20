@@ -585,7 +585,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                     auth_token = hashlib.sha256(token.encode()).hexdigest()
 
                     self.users.update_one({"username": username}, {"$set": {"auth_token": auth_token}})
-                    cookies = {"auth_token": auth_token + "; HttpOnly; Path=/"}
+                    cookies = {"auth_token": auth_token + "; Secure; HttpOnly; Path=/"}
                     response.cookies(cookies)
             else:
                 response.set_status(400, "Invalid Credentials")
