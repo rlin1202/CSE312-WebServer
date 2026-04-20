@@ -213,6 +213,8 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 self.get_calls()
             if message_type == "join_call":
                 self.call_info(message)
+            if message_type in ("offer","answer","ice_candidate"):
+                self.relay(message)
 
         socketID = socketIDs.pop(self,None)
 
@@ -226,8 +228,10 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
                 })
                 for member in members:
                     member.request.sendall(generate_ws_frame(response.encode()))
+                if not members:
+                    meeting_rooms.delete_one({"id":meeting})
+                    meetings.pop(meeting)
                 break
-
 
         connections.pop(self,None)
         self.ws_broadcast_users()
@@ -884,7 +888,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
     def call_info(self,message):
         id = message.get("callId")
-        meeting = meeting_rooms.find({"id":id})
+        meeting = meeting_rooms.find_one({"id":id})
 
         response = json.dumps({
             "messageType": "call_info",
@@ -892,6 +896,54 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         })
 
         self.request.sendall(generate_ws_frame(response.encode()))
+        self.broadcast_existing_participants(id)
+        self.broadcast_user_joined(id)
+
+        if id not in meetings:
+            meetings[id] = set()
+        meetings[id].add(self)
+
+    def broadcast_existing_participants(self,ID):
+        participants = []
+        for member in meetings.get(ID, set()):
+            participant = {
+                "socketId": socketIDs.get(member),
+                "username": connections.get(member)
+            }
+            participants.append(participant)
+
+        response = json.dumps({
+            "messageType": "existing_participants",
+            "participants": participants
+        })
+
+        self.request.sendall(generate_ws_frame(response.encode()))
+
+    def broadcast_user_joined(self,ID):
+        response = json.dumps({
+            "messageType": "user_joined",
+            "socketId":socketIDs.get(self),
+            "username":connections.get(self)
+        })
+
+        for member in meetings.get(ID,set()):
+            member.request.sendall(generate_ws_frame(response.encode()))
+
+    def relay(self,message):
+        socket_Id = message.get("socketId")
+        target = None
+        for sockets in socketIDs.items():
+            if socket_Id == sockets[1]:
+                target = sockets[0]
+                break
+
+        response = dict(message)
+        response["socketId"] = socketIDs.get(self)
+        response["username"] = connections.get(self)
+        response = json.dumps(response)
+
+        target.request.sendall(generate_ws_frame(response.encode()))
+
 
 def main():
     host = "0.0.0.0"
