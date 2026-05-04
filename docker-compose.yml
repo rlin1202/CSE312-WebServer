@@ -1,9 +1,13 @@
 services:
   nginx:
-    build: ./nginx
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
     ports:
       - '443:443'
       - '80:80'
+    volumes:
+      - uploads:/usr/share/nginx/html/public/imgs/profile-pics
   mongo:
     image: mongo:4.2.5
   myapp:
@@ -13,3 +17,8 @@ services:
       DOCKER_DB: true
     ports:
       - '8080:8080'
+    volumes:
+      - uploads:/root/public/imgs/profile-pics
+
+volumes:
+  uploads:
